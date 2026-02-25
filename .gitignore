@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Test output
+coverage/
+
+# Plans
+*.md

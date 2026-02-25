@@ -1,0 +1,36 @@
+{
+  "name": "tokenxtractor",
+  "version": "1.0.0",
+  "description": "Upload AI agent chat sessions to GitHub / HuggingFace for dataset collection",
+  "author": "Open Source Distillation Project contributors",
+  "license": "MIT",
+  "keywords": ["claude", "ai", "dataset", "huggingface", "github", "cli", "agent"],
+  "engines": { "node": ">=18.0.0" },
+  "files": ["dist"],
+  "bin": {
+    "tokenxtractor": "dist/index.js"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "dev": "tsup src/index.ts --format esm --watch",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tokenxtractor/core": "workspace:*",
+    "commander": "^12.0.0",
+    "inquirer": "^9.2.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.0",
+    "chokidar": "^3.6.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.0",
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.1.9"
+  }
+}
