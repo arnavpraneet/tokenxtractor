@@ -18,7 +18,6 @@ import {
   recordUpload,
   isUploaded,
   addPendingConfirmation,
-  isPendingConfirmation,
   isConfirmed,
   confirmSessions,
   clearConfirmed,
@@ -138,6 +137,25 @@ program
       }
     }
 
+    const pendingConfirmCount = (state.pendingConfirmation ?? []).length;
+    const confirmedCount = (state.confirmedForUpload ?? []).length;
+
+    const notConfigured = !config.github?.token && !config.huggingface?.token && !config.openagentsessions?.githubToken;
+    const allUploaded = allSessions.length === uploadedSessions.length;
+
+    let next_step: string;
+    if (notConfigured) {
+      next_step = "Run `tokenxtractor init` to configure";
+    } else if (allUploaded) {
+      next_step = "All sessions uploaded";
+    } else if (pendingConfirmCount > 0) {
+      next_step = `Run \`tokenxtractor confirm\` to review ${pendingConfirmCount} exported file(s), then \`tokenxtractor export\` to upload`;
+    } else if (confirmedCount > 0) {
+      next_step = `Run \`tokenxtractor export\` to upload ${confirmedCount} confirmed session(s)`;
+    } else {
+      next_step = "Run `tokenxtractor export` to export and review pending sessions";
+    }
+
     const status = {
       version: VERSION,
       config_path: getConfigPath(),
@@ -146,12 +164,9 @@ program
       total_sessions: allSessions.length,
       uploaded_sessions: uploadedSessions.length,
       pending_sessions: allSessions.length - uploadedSessions.length,
-      next_step:
-        !config.github?.token && !config.huggingface?.token
-          ? "Run `tokenxtractor init` to configure"
-          : allSessions.length === uploadedSessions.length
-          ? "All sessions uploaded"
-          : "Run `tokenxtractor export` to upload pending sessions",
+      awaiting_confirmation: pendingConfirmCount,
+      confirmed_ready: confirmedCount,
+      next_step,
     };
 
     console.log(JSON.stringify(status, null, 2));
@@ -425,6 +440,18 @@ async function runExport(
       continue;
     }
 
+    // ── Review gate ────────────────────────────────────────────────────────
+    // When interactive review is enabled (default), require the user to run
+    // `tokenxtractor confirm` before any upload goes out. Watch mode /
+    // --no-review bypasses this gate intentionally.
+    if (!opts.noReview && !isConfirmed(currentState, raw.sessionId)) {
+      console.log(chalk.yellow(`  ⚠  Session ${raw.sessionId.slice(0, 8)} is queued for review.`));
+      console.log(chalk.dim(`     Open ${localJsonPath} to inspect it, then run:`));
+      console.log(chalk.cyan(`     tokenxtractor confirm`));
+      console.log(chalk.dim(`     After confirming, re-run \`tokenxtractor export\` to upload.`));
+      continue;
+    }
+
     // Upload to configured destinations
     const uploadSpinner = ora(`  Uploading ${raw.sessionId.slice(0, 8)}…`).start();
     try {
@@ -554,9 +581,6 @@ async function runConfirm(): Promise<void> {
   console.log("");
 }
 
-// Make confirm/clearConfirmed/isPendingConfirmation/isConfirmed available for future use
-void isPendingConfirmation;
-void isConfirmed;
 
 function buildUploaders(config: TokenXtractorConfig) {
   const uploaders: Array<GitHubUploader | HuggingFaceUploader> = [];
