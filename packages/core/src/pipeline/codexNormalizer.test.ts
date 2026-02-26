@@ -450,7 +450,13 @@ describe("normalizeCodexSession — username sanitization", () => {
 
 describe("normalizeCodexSession — git branch", () => {
   it("sets git_branch when execSync returns a branch name", () => {
-    vi.mocked(execSync).mockReturnValue("main\n" as any);
+    vi.mocked(execSync).mockImplementation((cmd: unknown) => {
+      const c = String(cmd);
+      if (c.includes("rev-parse")) return "main\n" as any;
+      if (c.includes("config user.name")) return "testuser\n" as any;
+      if (c.includes("config user.email")) return "testuser@example.com\n" as any;
+      throw new Error("no remote");
+    });
     const session = normalizeCodexSession(makeRaw({ cwd: "/home/testuser/project", lines: [userMsgLine("hi")] }));
     expect(session.git_branch).toBe("main");
   });

@@ -656,6 +656,24 @@ async function runInit(): Promise<void> {
     },
   ]);
 
+  console.log(chalk.dim("\n  Username anonymization:"));
+  console.log(chalk.dim("  Your OS username and home directory are always anonymized automatically."));
+  console.log(chalk.dim("  Add any additional names (e.g. your GitHub handle) that may appear in sessions.\n"));
+
+  const { extraUsernamesRaw } = await inquirer.prompt<{ extraUsernamesRaw: string }>([
+    {
+      type: "input",
+      name: "extraUsernamesRaw",
+      message: "Additional usernames to anonymize (comma-separated, leave blank to skip):",
+      default: existing.redaction.redactUsernames.join(", "),
+    },
+  ]);
+
+  const extraUsernames = extraUsernamesRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   const newConfig: TokenXtractorConfig = {
     destination,
     github: githubConfig,
@@ -664,6 +682,7 @@ async function runInit(): Promise<void> {
     redaction: {
       ...existing.redaction,
       enabled: redactionEnabled,
+      redactUsernames: extraUsernames,
     },
     exclude: existing.exclude,
     noThinking,

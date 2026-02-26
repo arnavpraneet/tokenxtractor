@@ -403,16 +403,19 @@ export function redactText(
   }
 
   // Redact usernames (replace with stable hashes).
-  // Always include the current OS username to catch paths like /home/<user>/...
-  const osUsername = userInfo().username;
+  // Always include the current OS username + homedir to catch paths like /home/<user>/...
+  const { username: osUsername, homedir } = userInfo();
   const usernamesToRedact = Array.from(
-    new Set([osUsername, ...(options.redactUsernames ?? [])])
+    new Set([osUsername, homedir, ...(options.redactUsernames ?? [])])
   ).filter(Boolean);
 
   for (const username of usernamesToRedact) {
     if (result.includes(username)) {
       const hashed = hashUsername(username);
       result = result.split(username).join(hashed);
+      // Also redact the hyphen-encoded form: -username- (appears in Claude Code
+      // project directory names embedded in conversation text)
+      result = result.split(`-${username}-`).join(`-${hashed}-`);
       redactedCount++;
       if (!types.includes("username")) types.push("username");
     }

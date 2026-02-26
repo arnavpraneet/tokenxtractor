@@ -265,6 +265,29 @@ describe("redactText — username redaction", () => {
     const { text: out } = redactText(text, { ...BASE_OPTS, redactUsernames: ["testuser123"] });
     expect(out).toMatch(/user_[0-9a-f]{8}/);
   });
+
+  it("redacts the hyphen-encoded form of a username (-username-) in message content", () => {
+    // Claude Code encodes project paths as -home-user-dev-myproject in JSONL content
+    const text = "working on project at -home-testuser123-dev-myproject";
+    const { text: out, types } = redactText(text, {
+      ...BASE_OPTS,
+      redactUsernames: ["testuser123"],
+    });
+    expect(out).not.toContain("testuser123");
+    expect(types).toContain("username");
+  });
+
+  it("redacts the homedir path in message content (auto-included via OS userInfo)", () => {
+    // The homedir is always added to the redact list alongside the OS username.
+    // We simulate this by supplying it via redactUsernames (same code path in redactor).
+    const text = "file saved to /home/testuser123/notes.txt";
+    const { text: out, types } = redactText(text, {
+      ...BASE_OPTS,
+      redactUsernames: ["/home/testuser123"],
+    });
+    expect(out).not.toContain("/home/testuser123");
+    expect(types).toContain("username");
+  });
 });
 
 // ── redactText: custom patterns ──────────────────────────────────────────────

@@ -2,6 +2,7 @@ export * from "./schema.js";
 export * from "./state.js";
 export * from "./detectors/claudeCode.js";
 export * from "./detectors/codex.js";
+export * from "./pipeline/usernameDetector.js";
 export * from "./pipeline/normalizer.js";
 export * from "./pipeline/codexNormalizer.js";
 export * from "./pipeline/redactor.js";

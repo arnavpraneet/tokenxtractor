@@ -1,6 +1,5 @@
 import { execSync } from "child_process";
 import { createHash } from "crypto";
-import { userInfo } from "os";
 import { v4 as uuidv4 } from "uuid";
 import { RawSession } from "../detectors/claudeCode.js";
 import {
@@ -9,6 +8,7 @@ import {
   Session,
   ToolUse,
 } from "../schema.js";
+import { detectUsernames } from "./usernameDetector.js";
 
 const UPLOADER_VERSION = "1.0.0";
 
@@ -248,11 +248,9 @@ export function normalizeSession(
   const firstCwd = raw.messages.find((m) => m.cwd)?.cwd;
   const gitBranch = firstCwd ? detectGitBranch(firstCwd) : undefined;
 
-  // Build the full list of usernames to anonymize: OS user + any extras from config
-  const osUsername = userInfo().username;
-  const allUsernames = Array.from(
-    new Set([osUsername, ...(options.extraUsernames ?? [])].filter(Boolean))
-  );
+  // Build the full list of strings to anonymize: OS user, homedir, git identity,
+  // GitHub handle (auto-detected from cwd), plus any extras from config.
+  const allUsernames = detectUsernames(firstCwd, options.extraUsernames);
 
   /**
    * Replace every tracked username with its stable hash in a string.

@@ -1,10 +1,10 @@
 import { execSync } from "child_process";
 import { createHash } from "crypto";
-import { userInfo } from "os";
 import { basename } from "path";
 import { v4 as uuidv4 } from "uuid";
 import { RawCodexSession } from "../schema.js";
 import { Message, Session, ToolUse } from "../schema.js";
+import { detectUsernames } from "./usernameDetector.js";
 
 const UPLOADER_VERSION = "1.0.0";
 
@@ -62,11 +62,9 @@ export function normalizeCodexSession(
   raw: RawCodexSession,
   options: { noThinking?: boolean; extraUsernames?: string[] } = {}
 ): Session {
-  // Build username sanitizer
-  const osUsername = userInfo().username;
-  const allUsernames = Array.from(
-    new Set([osUsername, ...(options.extraUsernames ?? [])].filter(Boolean))
-  );
+  // Build the full list of strings to anonymize: OS user, homedir, git identity,
+  // GitHub handle (auto-detected from cwd), plus any extras from config.
+  const allUsernames = detectUsernames(raw.cwd || undefined, options.extraUsernames);
 
   function sanitize(s: string): string {
     let result = s;

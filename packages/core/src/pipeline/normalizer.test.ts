@@ -479,11 +479,68 @@ describe("normalizeSession — username sanitization", () => {
   });
 });
 
+// ── GitHub handle and homedir sanitization ────────────────────────────────────
+
+describe("normalizeSession — GitHub handle and homedir sanitization", () => {
+  it("sanitizes a GitHub handle extracted from git remote URL in tool summary", () => {
+    vi.mocked(userInfo).mockReturnValue({ username: "osuser", uid: 1, gid: 1, homedir: "/home/osuser", shell: "/bin/bash" });
+    vi.mocked(execSync).mockImplementation((cmd: unknown) => {
+      const c = String(cmd);
+      if (c.includes("rev-parse")) return "main\n" as any;
+      if (c.includes("remote get-url")) return "https://github.com/mygithubhandle/repo.git\n" as any;
+      if (c.includes("config user.name")) return "osuser\n" as any;
+      if (c.includes("config user.email")) return "osuser@example.com\n" as any;
+      throw new Error("unexpected");
+    });
+    const raw = makeRawSession({
+      messages: [
+        makeRawMsg({ type: "user", cwd: "/home/osuser/project", message: { content: "hi" } }),
+        makeAssistantMsg({
+          message: {
+            content: [
+              { type: "tool_use", id: "tu_1", name: "Bash", input: { description: "fetching mygithubhandle repo" } },
+            ],
+          },
+        }),
+      ],
+    });
+    const session = normalizeSession(raw);
+    const summary = session.messages.find((m) => m.role === "assistant")?.tool_uses?.[0].input_summary ?? "";
+    expect(summary).not.toContain("mygithubhandle");
+    expect(summary).toMatch(/user_[0-9a-f]{8}/);
+  });
+
+  it("sanitizes the full homedir path in tool summaries", () => {
+    vi.mocked(userInfo).mockReturnValue({ username: "alice", uid: 1, gid: 1, homedir: "/Users/alice", shell: "/bin/zsh" });
+    vi.mocked(execSync).mockImplementation(() => { throw new Error("no git"); });
+    const raw = makeRawSession({
+      messages: [
+        makeAssistantMsg({
+          message: {
+            content: [
+              { type: "tool_use", id: "tu_1", name: "Read", input: { file_path: "/Users/alice/project/src/index.ts" } },
+            ],
+          },
+        }),
+      ],
+    });
+    const session = normalizeSession(raw);
+    const summary = session.messages.find((m) => m.role === "assistant")?.tool_uses?.[0].input_summary ?? "";
+    expect(summary).not.toContain("/Users/alice");
+  });
+});
+
 // ── Git branch detection ──────────────────────────────────────────────────────
 
 describe("normalizeSession — git branch", () => {
   it("sets git_branch when execSync returns a branch name", () => {
-    vi.mocked(execSync).mockReturnValue("main\n" as any);
+    vi.mocked(execSync).mockImplementation((cmd: unknown) => {
+      const c = String(cmd);
+      if (c.includes("rev-parse")) return "main\n" as any;
+      if (c.includes("config user.name")) return "testuser\n" as any;
+      if (c.includes("config user.email")) return "testuser@example.com\n" as any;
+      throw new Error("no remote");
+    });
     const raw = makeRawSession({
       messages: [makeRawMsg({ type: "user", cwd: "/home/testuser/project", message: { content: "hi" } })],
     });
