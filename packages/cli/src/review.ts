@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import { Session } from "@tokenxtractor/core";
+import type { OpenAgentSessionsMetadata } from "@tokenxtractor/core";
 
 export type ReviewDecision = "upload" | "skip" | "edit";
 
@@ -83,6 +84,42 @@ async function editSession(session: Session): Promise<Session> {
   }
 
   return { ...session, messages };
+}
+
+/**
+ * Prompt the user to review and optionally override the auto-detected
+ * openagentsessions.org metadata (topic and tags).
+ */
+export async function promptOpenAgentSessionsMeta(
+  _session: Session,
+  defaults: OpenAgentSessionsMetadata
+): Promise<OpenAgentSessionsMetadata> {
+  const { default: inquirer } = await import("inquirer");
+
+  console.log(chalk.bold.cyan("\n  openagentsessions.org metadata\n"));
+  console.log(chalk.dim("  Edit topic and tags for the public gist, or press Enter to accept defaults.\n"));
+
+  const { topic, tagsRaw } = await inquirer.prompt<{ topic: string; tagsRaw: string }>([
+    {
+      type: "input",
+      name: "topic",
+      message: "Topic:",
+      default: defaults.topic,
+    },
+    {
+      type: "input",
+      name: "tagsRaw",
+      message: "Tags (comma-separated):",
+      default: defaults.tags.join(", "),
+    },
+  ]);
+
+  const tags = tagsRaw
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  return { topic, tags, language: defaults.language };
 }
 
 /**

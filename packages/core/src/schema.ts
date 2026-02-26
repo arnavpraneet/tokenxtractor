@@ -177,7 +177,12 @@ export interface HuggingFaceConfig {
   repo: string;
 }
 
-export type Destination = "github" | "huggingface" | "both";
+export interface OpenAgentSessionsConfig {
+  /** GitHub PAT with gist scope (same token as GitHub destination is fine). */
+  githubToken: string;
+}
+
+export type Destination = "github" | "huggingface" | "both" | "openagentsessions";
 
 export interface RedactionConfig {
   enabled: boolean;
@@ -190,6 +195,7 @@ export interface TokenXtractorConfig {
   destination: Destination;
   github?: GitHubConfig;
   huggingface?: HuggingFaceConfig;
+  openagentsessions?: OpenAgentSessionsConfig;
   watchPaths: string[];
   redaction: RedactionConfig;
   exclude: string[];

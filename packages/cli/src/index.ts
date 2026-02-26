@@ -24,6 +24,8 @@ import {
   clearConfirmed,
   GitHubUploader,
   HuggingFaceUploader,
+  GistUploader,
+  inferOpenAgentSessionsMeta,
   buildUploadPath,
   TokenXtractorConfig,
   Session,
@@ -31,7 +33,7 @@ import {
   RawCodexSession,
 } from "@tokenxtractor/core";
 import { loadConfig, saveConfig, getStatePath, getConfigPath, getConfigDir } from "./config.js";
-import { reviewSession, printSessionSummary } from "./review.js";
+import { reviewSession, printSessionSummary, promptOpenAgentSessionsMeta } from "./review.js";
 
 const VERSION = "1.0.0";
 
@@ -352,8 +354,9 @@ async function runExport(
 
   console.log(chalk.cyan(`Found ${pending.length} pending session(s).\n`));
 
-  // Build uploaders (only needed when pushing)
-  const uploaders = opts.push ? buildUploaders(config) : [];
+  // Build uploaders (only needed when pushing to github/huggingface).
+  // openagentsessions uses a per-session GistUploader constructed inside the loop.
+  const uploaders = opts.push && config.destination !== "openagentsessions" ? buildUploaders(config) : [];
 
   for (const tagged of pending) {
     const normalizeOpts = { noThinking: opts.noThinking, extraUsernames: config.redaction.redactUsernames };
@@ -432,9 +435,30 @@ async function runExport(
 
       const allPaths: string[] = [];
 
+      // GitHub / HuggingFace uploaders
       for (const uploader of uploaders) {
         const result = await uploader.upload(files);
         allPaths.push(...result.paths);
+      }
+
+      // openagentsessions.org — public GitHub Gist
+      if (config.destination === "openagentsessions" && config.openagentsessions?.githubToken) {
+        uploadSpinner.stop();
+        const defaultMeta = inferOpenAgentSessionsMeta(finalSession);
+        const meta = !opts.noReview
+          ? await promptOpenAgentSessionsMeta(finalSession, defaultMeta)
+          : defaultMeta;
+        uploadSpinner.start(`  Creating gist for ${raw.sessionId.slice(0, 8)}…`);
+
+        const gistUploader = new GistUploader(config.openagentsessions.githubToken, finalSession, meta);
+        const gistResult = await gistUploader.upload([
+          { path: "session.md", content: formatted.markdown },
+        ]);
+        allPaths.push(...gistResult.paths);
+        uploadSpinner.stop();
+        console.log(chalk.green(`  ✓ Gist created: ${gistResult.urls[0]}`));
+        console.log(chalk.dim(`     Submit at: https://openagentsessions.org/submit`));
+        uploadSpinner.start(); // restart for the state-save spinner text
       }
 
       currentState = recordUpload(currentState, {
@@ -573,7 +597,7 @@ async function runInit(): Promise<void> {
 
   const existing = await loadConfig();
 
-  const { destination } = await inquirer.prompt<{ destination: "github" | "huggingface" | "both" }>([
+  const { destination } = await inquirer.prompt<{ destination: "github" | "huggingface" | "both" | "openagentsessions" }>([
     {
       type: "list",
       name: "destination",
@@ -581,7 +605,8 @@ async function runInit(): Promise<void> {
       choices: [
         { name: "GitHub repository", value: "github" },
         { name: "HuggingFace dataset", value: "huggingface" },
-        { name: "Both", value: "both" },
+        { name: "Both (GitHub + HuggingFace)", value: "both" },
+        { name: "openagentsessions.org (public gist, CC0)", value: "openagentsessions" },
       ],
       default: existing.destination,
     },
@@ -589,6 +614,7 @@ async function runInit(): Promise<void> {
 
   let githubConfig = existing.github;
   let huggingfaceConfig = existing.huggingface;
+  let openAgentSessionsConfig = existing.openagentsessions;
 
   if (destination === "github" || destination === "both") {
     console.log(chalk.dim("\n  GitHub setup:"));
@@ -638,6 +664,25 @@ async function runInit(): Promise<void> {
     huggingfaceConfig = { token: hfAnswers.token, repo: hfAnswers.repo };
   }
 
+  if (destination === "openagentsessions") {
+    console.log(chalk.dim("\n  openagentsessions.org setup:"));
+    console.log(chalk.dim("  Sessions are uploaded as public GitHub Gists (CC0 license)."));
+    console.log(chalk.dim("  You will need a GitHub PAT with the 'gist' scope.\n"));
+    console.log(chalk.dim("  Create a PAT at: https://github.com/settings/tokens\n"));
+
+    const oasAnswers = await inquirer.prompt<{ githubToken: string }>([
+      {
+        type: "password",
+        name: "githubToken",
+        message: "GitHub Personal Access Token (gist scope required):",
+        default: existing.openagentsessions?.githubToken ?? existing.github?.token ?? "",
+        validate: (v: string) => (v.startsWith("ghp_") || v.startsWith("github_pat_") ? true : "Token should start with ghp_ or github_pat_"),
+      },
+    ]);
+
+    openAgentSessionsConfig = { githubToken: oasAnswers.githubToken };
+  }
+
   const { redactionEnabled, noThinking } = await inquirer.prompt<{
     redactionEnabled: boolean;
     noThinking: boolean;
@@ -678,6 +723,7 @@ async function runInit(): Promise<void> {
     destination,
     github: githubConfig,
     huggingface: huggingfaceConfig,
+    openagentsessions: openAgentSessionsConfig,
     watchPaths: existing.watchPaths,
     redaction: {
       ...existing.redaction,
@@ -697,6 +743,9 @@ async function runInit(): Promise<void> {
   console.log("  Next steps:");
   console.log(chalk.dim("  • Run `tokenxtractor list` to see discovered sessions"));
   console.log(chalk.dim("  • Run `tokenxtractor export` to upload pending sessions"));
+  if (destination === "openagentsessions") {
+    console.log(chalk.dim("  • After export, paste the gist URL at https://openagentsessions.org/submit"));
+  }
   console.log(
     chalk.dim("  • Add to ~/.claude/settings.json hooks to run automatically after each session\n")
   );

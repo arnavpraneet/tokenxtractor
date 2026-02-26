@@ -16,4 +16,6 @@ export interface IUploader {
 
 export { GitHubUploader } from "./github.js";
 export { HuggingFaceUploader } from "./huggingface.js";
+export { GistUploader, inferOpenAgentSessionsMeta } from "./gist.js";
+export type { OpenAgentSessionsMetadata } from "./gist.js";
 export { buildUploadPath } from "./pathBuilder.js";
