@@ -129,10 +129,10 @@ const BUILT_IN_PATTERNS: SecretPattern[] = [
       /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?(?:PRIVATE KEY|CERTIFICATE|PUBLIC KEY)-----[\s\S]*?-----END (?:RSA |EC |DSA |OPENSSH |PGP )?(?:PRIVATE KEY|CERTIFICATE|PUBLIC KEY)-----/g,
     placeholder: () => "[REDACTED:private-key]",
   },
-  // Generic password= assignments (heuristic)
+  // Generic password= assignments (heuristic) — quoted or unquoted
   {
     name: "password",
-    regex: /(?:password|passwd|pwd)\s*[:=]\s*["']([^"'\s]{8,})["']/gi,
+    regex: /(?:password|passwd|pwd)\s*[:=]\s*(?:["']([^"'\s]{8,})["']|([^\s"',;}{]{8,}))/gi,
     placeholder: () => "[REDACTED:password]",
   },
   // Connection strings with credentials
@@ -193,11 +193,11 @@ const BUILT_IN_PATTERNS: SecretPattern[] = [
       return m.slice(0, eqIdx + 1) + "[REDACTED:url-secret]";
     },
   },
-  // Shell env var assignments: export TOKEN=abc, TOKEN=abc command
+  // Shell env var assignments: export TOKEN=abc, TOKEN=abc command (any case)
   {
     name: "env-secret",
     regex:
-      /\b(?:export\s+)?[A-Z][A-Z0-9_]{2,}(?:_TOKEN|_KEY|_SECRET|_PASSWORD|_API_KEY)\s*=\s*([^\s'"]{8,})/g,
+      /\b(?:export\s+)?[A-Za-z][A-Za-z0-9_]{2,}(?:_TOKEN|_KEY|_SECRET|_PASSWORD|_API_KEY|_CREDENTIAL(?:S)?|_ACCESS_TOKEN|_PRIVATE_KEY)\s*=\s*([^\s'"]{8,})/g,
     placeholder: (m) => {
       const eqIdx = m.indexOf("=");
       return m.slice(0, eqIdx + 1) + "[REDACTED:env-secret]";

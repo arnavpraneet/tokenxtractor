@@ -270,28 +270,35 @@ export function normalizeSession(
   }
 
   const sanitizedBranch = gitBranch ? sanitize(gitBranch) : undefined;
+  const sanitizedWorkspace = sanitize(workspaceName);
 
   const rawFiles = extractFilesTouched(messages, firstCwd);
   const filesTouched = rawFiles.map(sanitize);
 
-  // Apply username sanitization to tool input_summary fields unconditionally.
+  // Apply username sanitization to all message fields unconditionally.
   // This ensures paths like /home/<user>/... are hashed regardless of whether
   // the redactor is enabled.
   const sanitizedMessages = messages.map((msg) => {
-    if (!msg.tool_uses?.length) return msg;
     return {
       ...msg,
-      tool_uses: msg.tool_uses.map((tu) => ({
-        ...tu,
-        input_summary: sanitize(tu.input_summary),
-      })),
+      content: sanitize(msg.content),
+      ...(msg.thinking !== undefined ? { thinking: sanitize(msg.thinking) } : {}),
+      ...(msg.tool_uses?.length
+        ? {
+            tool_uses: msg.tool_uses.map((tu) => ({
+              ...tu,
+              input_summary: sanitize(tu.input_summary),
+              ...(tu.result !== undefined ? { result: sanitize(tu.result) } : {}),
+            })),
+          }
+        : {}),
     };
   });
 
   return {
     id: raw.sessionId || uuidv4(),
     tool: "claude-code",
-    workspace: workspaceName,
+    workspace: sanitizedWorkspace,
     git_branch: sanitizedBranch,
     captured_at: new Date().toISOString(),
     start_time: startTime,
